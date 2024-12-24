@@ -10,6 +10,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Parent = player.PlayerGui
 local espActive = false
 local menuVisible = false
+local showFPS = true  -- Biến kiểm soát hiển thị FPS
 
 -- Hiển thị FPS và Tên tác giả
 local fpsLabel = Instance.new("TextLabel")
@@ -30,20 +31,6 @@ authorLabel.AnchorPoint = Vector2.new(1, 0)
 authorLabel.BackgroundTransparency = 1
 authorLabel.Text = "Tác giả: bảodz"
 
--- Thay đổi màu sắc cho FPS và tên tác giả
-local function changeColorContinuously(label)
-    local colors = {Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 0), 
-                    Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255), Color3.fromRGB(75, 0, 130), 
-                    Color3.fromRGB(238, 130, 238)}
-    local index = 1
-    while true do
-        label.TextColor3 = colors[index]
-        index = index + 1
-        if index > #colors then index = 1 end
-        wait(0.5)
-    end
-end
-
 -- Tính FPS
 local lastTick = tick()
 local frameCount = 0
@@ -53,95 +40,53 @@ local function updateFPS()
     frameCount = frameCount + 1
     if tick() - lastTick >= 1 then
         fps = frameCount
-        fpsLabel.Text = "FPS: " .. fps
+        if showFPS then
+            fpsLabel.Text = "FPS: " .. fps
+        end
         lastTick = tick()
         frameCount = 0
     end
 end
 
--- Chức năng ESP (Hiển thị Devil Fruits)
-local function espFruits()
-    for _, item in pairs(workspace:GetChildren()) do
-        if item:IsA("Model") and item.Name == "DevilFruit" then
-            local highlight = Instance.new("Highlight")
-            highlight.Parent = item
-            highlight.FillColor = Color3.fromRGB(255, 255, 0)
-            highlight.FillTransparency = 0.6
-            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-            highlight.OutlineTransparency = 0.3
-        end
-    end
-end
-
--- Tween Di chuyển đến mục tiêu
-local function tweenToTarget(targetPosition)
-    local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, 1, false, 0)
-    local tweenGoal = {Position = targetPosition}
-    local tween = TweenService:Create(rootPart, tweenInfo, tweenGoal)
-    tween:Play()
-end
-
--- Auto Farm Level (Tự động farm quái)
-local function autoFarmLevel()
-    while true do
-        -- Chọn quái để đánh (có thể thay đổi theo yêu cầu)
-        local target = workspace:WaitForChild("Enemies"):FindFirstChild("TargetEnemy")  -- Thay TargetEnemy bằng tên quái của bạn
-        if target then
-            tweenToTarget(target.Position)
-            -- Tấn công quái
-            while target and target.Humanoid.Health > 0 do
-                humanoid:MoveTo(target.Position)
-                -- Đánh quái
-                -- Thêm phần tấn công quái ở đây (ví dụ: sử dụng một kỹ năng hoặc đấm tay)
-                wait(1)
+-- Hàm tìm quái vật gần nhất
+local function findNearestEnemy()
+    local nearestEnemy = nil
+    local shortestDistance = math.huge
+    for _, enemy in pairs(workspace:GetChildren()) do
+        if enemy:FindFirstChild("Humanoid") and enemy:FindFirstChild("Head") then
+            local distance = (character.HumanoidRootPart.Position - enemy.HumanoidRootPart.Position).Magnitude
+            if distance < shortestDistance then
+                nearestEnemy = enemy
+                shortestDistance = distance
             end
         end
-        wait(2)  -- Đợi trước khi bắt đầu lại farm
+    end
+    return nearestEnemy
+end
+
+-- Auto Farm (di chuyển và tấn công quái vật)
+local function autoFarm()
+    local enemy = findNearestEnemy()
+    if enemy then
+        -- Di chuyển tới quái vật
+        local path = game:GetService("PathfindingService"):CreatePath({
+            AgentRadius = 2,
+            AgentHeight = 5,
+            AgentCanJump = true,
+            AgentJumpHeight = 10,
+            AgentMaxSlope = 45,
+        })
+        
+        path:ComputeAsync(character.HumanoidRootPart.Position, enemy.HumanoidRootPart.Position)
+        path:MoveTo(character)
+
+        -- Tấn công quái vật
+        humanoid:MoveTo(enemy.HumanoidRootPart.Position)
+        enemy.Humanoid:TakeDamage(10)  -- Thay đổi giá trị này tùy thuộc vào lượng sát thương bạn muốn gây
     end
 end
 
--- Auto Nhận Nhiệm Vụ và Sang Sea 2, Sea 3
-local function autoReceiveQuest()
-    -- Code nhận nhiệm vụ ở Sea 1, chuyển sang Sea 2 và Sea 3
-    local questNPC = workspace:FindFirstChild("QuestGiver")  -- Thay QuestGiver bằng tên NPC trong game
-    if questNPC then
-        -- Nhận nhiệm vụ
-        questNPC:Click()  -- Giả sử NPC có sự kiện click để nhận nhiệm vụ
-    end
-end
-
-local function autoTeleportToSea(destinationSea)
-    -- Di chuyển đến các Sea khác (Sea 2, Sea 3)
-    local teleportLocation = workspace:FindFirstChild(destinationSea)
-    if teleportLocation then
-        tweenToTarget(teleportLocation.Position)  -- Di chuyển đến vị trí
-    end
-end
-
--- Anti Ban: Giả lập hành vi người dùng
-local function antiBan()
-    -- Phát hiện chuột bị treo (lỗi)
-    local function preventBotDetection()
-        while true do
-            wait(1)  -- Đảm bảo không thực hiện quá nhanh
-        end
-    end
-
-    -- Chạy AntiBan (dù bạn không cần làm gì đặc biệt để chống phát hiện bot)
-    preventBotDetection()
-end
-
--- Đánh nhanh
-local function fastAttack()
-    while true do
-        -- Tạo hành động đánh nhanh ở đây (giả lập đánh nhiều lần trong thời gian ngắn)
-        humanoid:MoveTo(workspace:WaitForChild("TargetEnemy").Position)
-        -- Thực hiện hành động tấn công ở đây
-        wait(0.1)  -- Thực hiện hành động nhanh chóng
-    end
-end
-
--- Menu với mật khẩu
+-- Hàm tạo menu
 local function createMenu()
     local menuFrame = Instance.new("Frame")
     menuFrame.Parent = screenGui
@@ -150,7 +95,7 @@ local function createMenu()
     menuFrame.Size = UDim2.new(0, 200, 0, 500)
     menuFrame.Position = UDim2.new(1, -220, 0, 10)
     menuFrame.AnchorPoint = Vector2.new(1, 0)
-    menuFrame.Visible = menuVisible
+    menuFrame.Visible = false -- Menu sẽ không hiển thị mặc định
 
     -- Mật khẩu
     local passwordLabel = Instance.new("TextLabel")
@@ -177,17 +122,65 @@ local function createMenu()
     enterButton.Position = UDim2.new(0, 10, 0, 90)
     enterButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
+    -- Mã nút Enter
     enterButton.MouseButton1Click:Connect(function()
         if passwordBox.Text == "123" then
-            menuVisible = true  -- Hiển thị menu khi nhập mật khẩu đúng
-            menuFrame.Visible = true
+            menuVisible = true
+            TweenService:Create(menuFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, -220, 0, 10)}):Play()
+            menuFrame.Visible = true  -- Hiển thị menu sau khi nhập mật khẩu đúng
         else
             print("Mật khẩu sai!")
         end
     end)
 
-    -- Các chức năng trong menu
+    -- Thêm nút Auto Farm
     local autoFarmButton = Instance.new("TextButton")
     autoFarmButton.Parent = menuFrame
     autoFarmButton.Text = "Auto Farm"
-    autoFarmButton.TextColor
+    autoFarmButton.Size = UDim2.new(0, 180, 0, 30)
+    autoFarmButton.Position = UDim2.new(0, 10, 0, 130)
+    autoFarmButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    autoFarmButton.MouseButton1Click:Connect(function()
+        print("Auto Farm started!")
+        -- Gọi hàm Auto Farm ở đây
+        while menuVisible do
+            autoFarm()
+            wait(1)  -- Đảm bảo không gây lag
+        end
+    end)
+
+    -- Thêm nút tắt hiển thị FPS
+    local toggleFPSButton = Instance.new("TextButton")
+    toggleFPSButton.Parent = menuFrame
+    toggleFPSButton.Text = "Toggle FPS"
+    toggleFPSButton.Size = UDim2.new(0, 180, 0, 30)
+    toggleFPSButton.Position = UDim2.new(0, 10, 0, 170)
+    toggleFPSButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    toggleFPSButton.MouseButton1Click:Connect(function()
+        showFPS = not showFPS
+        if not showFPS then
+            fpsLabel.Text = ""  -- Ẩn FPS
+        end
+    end)
+
+    -- Nút đóng menu
+    local closeButton = Instance.new("TextButton")
+    closeButton.Parent = menuFrame
+    closeButton.Text = "Close"
+    closeButton.Size = UDim2.new(0, 180, 0, 30)
+    closeButton.Position = UDim2.new(0, 10, 0, 210)
+    closeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    closeButton.MouseButton1Click:Connect(function()
+        menuVisible = false
+        TweenService:Create(menuFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(1, -220, 0, 10)}):Play()
+        wait(0.5)  -- Đợi đến khi tween kết thúc
+        menuFrame.Visible = false  -- Ẩn menu khi đóng
+    end)
+end
+
+-- Gọi hàm tạo menu
+createMenu()
+
+-- Cập nhật FPS mỗi giây
+game:GetService("RunService").Heartbeat:Connect(function()
+    updateFPS(
