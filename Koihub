@@ -1,139 +1,148 @@
+-- Khởi tạo dịch vụ và các đối tượng
 local TweenService = game:GetService("TweenService")
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 local backpack = player:WaitForChild("Backpack")
+local leaderstats = player:WaitForChild("leaderstats")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player.PlayerGui
+local espActive = false
+local menuVisible = false
 
--- Các đảo và NPC
-local sea1Island = workspace:WaitForChild("Sea1Island")  
-local sea2Island = workspace:WaitForChild("Sea2Island")  
-local sea3Island = workspace:WaitForChild("Sea3Island")  
+-- Hiển thị FPS và Tên tác giả
+local fpsLabel = Instance.new("TextLabel")
+fpsLabel.Parent = screenGui
+fpsLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+fpsLabel.Size = UDim2.new(0, 200, 0, 30)
+fpsLabel.Position = UDim2.new(1, -210, 0, 10)
+fpsLabel.AnchorPoint = Vector2.new(1, 0)
+fpsLabel.BackgroundTransparency = 1
+fpsLabel.Text = "FPS: Calculating..."
 
--- Các trái cây
-local fruitFolder = workspace:WaitForChild("Fruits")
-local fruits = fruitFolder:GetChildren()
+local authorLabel = Instance.new("TextLabel")
+authorLabel.Parent = screenGui
+authorLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+authorLabel.Size = UDim2.new(0, 200, 0, 30)
+authorLabel.Position = UDim2.new(1, -210, 0, 40)
+authorLabel.AnchorPoint = Vector2.new(1, 0)
+authorLabel.BackgroundTransparency = 1
+authorLabel.Text = "Tác giả: bảodz"
 
-local haki = player:WaitForChild("Haki")
-
--- Các tham số level và điều kiện
-local maxLevel = 2600
-local currentLevel = player.leaderstats.Level.Value
-
--- Trạng thái bật/tắt các tính năng
-local autoQuestEnabled = false
-local autoMeleeEnabled = false
-local showFPS = false
-local antiBanEnabled = true
-local espEnabled = false
-local tweenToFruitEnabled = false
-local fastAttackEnabled = false
-
--- Delay ngẫu nhiên (Anti-ban)
-local function randomDelay(min, max)
-    local delayTime = math.random(min, max)
-    wait(delayTime)
-end
-
--- Kiểm tra xem đã đạt đủ level chưa
-local function isLevelMax()
-    return currentLevel >= maxLevel
-end
-
--- Bật Haki nếu chưa mua
-local function enableHaki()
-    if not haki.Value then
-        haki.Value = true
-        print("Haki đã được bật!")
+-- Thay đổi màu sắc cho FPS và tên tác giả
+local function changeColorContinuously(label)
+    local colors = {Color3.fromRGB(255, 0, 0), Color3.fromRGB(255, 165, 0), Color3.fromRGB(255, 255, 0), 
+                    Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255), Color3.fromRGB(75, 0, 130), 
+                    Color3.fromRGB(238, 130, 238)}
+    local index = 1
+    while true do
+        label.TextColor3 = colors[index]
+        index = index + 1
+        if index > #colors then index = 1 end
+        wait(0.5)
     end
 end
 
--- Kiểm tra và chọn vũ khí melee
-local function selectMeleeWeapon()
-    local meleeWeapon = nil
-    for _, item in pairs(backpack:GetChildren()) do
-        if item:IsA("Tool") and item.Name:lower():find("sword") then
-            meleeWeapon = item
-            break
-        end
-    end
+-- Tính FPS
+local lastTick = tick()
+local frameCount = 0
+local fps = 0
 
-    if meleeWeapon then
-        print("Đã chọn vũ khí melee: " .. meleeWeapon.Name)
-        character.Humanoid:EquipTool(meleeWeapon)
-    else
-        print("Không có vũ khí melee trong balo!")
+local function updateFPS()
+    frameCount = frameCount + 1
+    if tick() - lastTick >= 1 then
+        fps = frameCount
+        fpsLabel.Text = "FPS: " .. fps
+        lastTick = tick()
+        frameCount = 0
     end
 end
 
--- Anti-Ban: Đánh nhanh với độ trễ ngẫu nhiên
-local function fastAttackMonster(monster)
-    selectMeleeWeapon()
-
-    -- Kiểm tra khoảng cách từ quái vật
-    local distance = (monster.Position - rootPart.Position).magnitude
-
-    if distance <= 10 then
-        local monsterHumanoid = monster:FindFirstChildOfClass("Humanoid")
-        if monsterHumanoid and monsterHumanoid.Health > 0 then
-            -- Tấn công quái vật, giảm thời gian giữa các lần tấn công nếu Fast Attack được bật
-            while fastAttackEnabled and monsterHumanoid.Health > 0 do
-                -- Đánh quái vật và tạo độ trễ ngẫu nhiên giữa các lần tấn công để tránh bị phát hiện
-                monsterHumanoid:TakeDamage(10)  -- Tùy chỉnh lượng sát thương
-                randomDelay(0.05, 0.1)  -- Tạo độ trễ ngẫu nhiên để tránh tấn công quá nhanh
-            end
+-- Chức năng ESP (Hiển thị Devil Fruits)
+local function espFruits()
+    for _, item in pairs(workspace:GetChildren()) do
+        if item:IsA("Model") and item.Name == "DevilFruit" then
+            local highlight = Instance.new("Highlight")
+            highlight.Parent = item
+            highlight.FillColor = Color3.fromRGB(255, 255, 0)
+            highlight.FillTransparency = 0.6
+            highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+            highlight.OutlineTransparency = 0.3
         end
     end
 end
 
--- ESP Fruit: Hiển thị các trái cây trên bản đồ
-local function displayFruitESP()
-    if espEnabled then
-        for _, fruit in pairs(fruits) do
-            -- Tạo một ESP cho mỗi trái cây
-            local fruitLabel = Instance.new("BillboardGui")
-            fruitLabel.Adornee = fruit
-            fruitLabel.Parent = fruit
-            fruitLabel.Size = UDim2.new(0, 100, 0, 50)
-            fruitLabel.StudsOffset = Vector3.new(0, 5, 0)
-
-            local textLabel = Instance.new("TextLabel")
-            textLabel.Parent = fruitLabel
-            textLabel.Text = fruit.Name
-            textLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-            textLabel.BackgroundTransparency = 0.5
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
-            textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-            textLabel.TextSize = 16
-            textLabel.TextStrokeTransparency = 0.8
-        end
-    else
-        -- Xóa ESP khi tắt
-        for _, fruit in pairs(fruits) do
-            local fruitLabel = fruit:FindFirstChildOfClass("BillboardGui")
-            if fruitLabel then
-                fruitLabel:Destroy()
-            end
-        end
-    end
-end
-
--- Di chuyển đến trái cây đã tìm thấy
-local function moveToFruit(fruit)
-    local targetPosition = fruit.Position
+-- Tween Di chuyển đến mục tiêu
+local function tweenToTarget(targetPosition)
     local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.Out, 1, false, 0)
     local tweenGoal = {Position = targetPosition}
     local tween = TweenService:Create(rootPart, tweenInfo, tweenGoal)
     tween:Play()
-    print("Đang di chuyển đến trái cây: " .. fruit.Name)
 end
 
--- Tạo Menu UI với khóa mật khẩu
-local function createMenu()
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Parent = player.PlayerGui
+-- Auto Farm Level (Tự động farm quái)
+local function autoFarmLevel()
+    while true do
+        -- Chọn quái để đánh (có thể thay đổi theo yêu cầu)
+        local target = workspace:WaitForChild("Enemies"):FindFirstChild("TargetEnemy")  -- Thay TargetEnemy bằng tên quái của bạn
+        if target then
+            tweenToTarget(target.Position)
+            -- Tấn công quái
+            while target and target.Humanoid.Health > 0 do
+                humanoid:MoveTo(target.Position)
+                -- Đánh quái
+                -- Thêm phần tấn công quái ở đây (ví dụ: sử dụng một kỹ năng hoặc đấm tay)
+                wait(1)
+            end
+        end
+        wait(2)  -- Đợi trước khi bắt đầu lại farm
+    end
+end
 
-    -- Tạo Menu chính
+-- Auto Nhận Nhiệm Vụ và Sang Sea 2, Sea 3
+local function autoReceiveQuest()
+    -- Code nhận nhiệm vụ ở Sea 1, chuyển sang Sea 2 và Sea 3
+    local questNPC = workspace:FindFirstChild("QuestGiver")  -- Thay QuestGiver bằng tên NPC trong game
+    if questNPC then
+        -- Nhận nhiệm vụ
+        questNPC:Click()  -- Giả sử NPC có sự kiện click để nhận nhiệm vụ
+    end
+end
+
+local function autoTeleportToSea(destinationSea)
+    -- Di chuyển đến các Sea khác (Sea 2, Sea 3)
+    local teleportLocation = workspace:FindFirstChild(destinationSea)
+    if teleportLocation then
+        tweenToTarget(teleportLocation.Position)  -- Di chuyển đến vị trí
+    end
+end
+
+-- Anti Ban: Giả lập hành vi người dùng
+local function antiBan()
+    -- Phát hiện chuột bị treo (lỗi)
+    local function preventBotDetection()
+        while true do
+            wait(1)  -- Đảm bảo không thực hiện quá nhanh
+        end
+    end
+
+    -- Chạy AntiBan (dù bạn không cần làm gì đặc biệt để chống phát hiện bot)
+    preventBotDetection()
+end
+
+-- Đánh nhanh
+local function fastAttack()
+    while true do
+        -- Tạo hành động đánh nhanh ở đây (giả lập đánh nhiều lần trong thời gian ngắn)
+        humanoid:MoveTo(workspace:WaitForChild("TargetEnemy").Position)
+        -- Thực hiện hành động tấn công ở đây
+        wait(0.1)  -- Thực hiện hành động nhanh chóng
+    end
+end
+
+-- Menu với mật khẩu
+local function createMenu()
     local menuFrame = Instance.new("Frame")
     menuFrame.Parent = screenGui
     menuFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -141,8 +150,9 @@ local function createMenu()
     menuFrame.Size = UDim2.new(0, 200, 0, 500)
     menuFrame.Position = UDim2.new(1, -220, 0, 10)
     menuFrame.AnchorPoint = Vector2.new(1, 0)
+    menuFrame.Visible = menuVisible
 
-    -- Thêm một ô nhập mật khẩu khi người chơi nhấn vào menu
+    -- Mật khẩu
     local passwordLabel = Instance.new("TextLabel")
     passwordLabel.Parent = menuFrame
     passwordLabel.Text = "Nhập mật khẩu để mở menu:"
@@ -168,20 +178,16 @@ local function createMenu()
     enterButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
     enterButton.MouseButton1Click:Connect(function()
-        -- Kiểm tra mật khẩu
         if passwordBox.Text == "123" then
-            print("Mật khẩu đúng! Mở menu.")
-            -- Hiển thị menu (các nút bật/tắt các tính năng khác)
-            -- Thêm các tính năng UI khác ở đây (ESP, Fast Attack, Auto Quest, ...)
+            menuVisible = true  -- Hiển thị menu khi nhập mật khẩu đúng
+            menuFrame.Visible = true
         else
-            print("Mật khẩu sai! Thử lại.")
+            print("Mật khẩu sai!")
         end
     end)
-end
 
--- Hiển thị menu khi người chơi nhấn phím "M" (hoặc phím khác bạn chọn)
-game:GetService("UserInputService").InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.M then  -- Bạn có thể thay đổi phím này
-        createMenu()  -- Hiển thị menu khi nhấn phím M
-    end
-end)
+    -- Các chức năng trong menu
+    local autoFarmButton = Instance.new("TextButton")
+    autoFarmButton.Parent = menuFrame
+    autoFarmButton.Text = "Auto Farm"
+    autoFarmButton.TextColor
