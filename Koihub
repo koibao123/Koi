@@ -1,0 +1,6 @@
+Config = {
+    namescript = "koihub",--Tên Script
+    logoscript = "80166607532112",--ID Logo Script
+    tacgia = "bảodz"-- Tên Tác Giả
+}
+loadstring(game:HttpGet"https://raw.githubusercontent.com/UserDevEthical/Loadstring/main/CokkaHub.lua")()
